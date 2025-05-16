@@ -46,3 +46,5 @@ How to start the project on my client:
 2. Open docker and run "183_12_1_tresorbackend_rupe-master" and "M183_Backend"
 3. Run the TresorbackendApplication.java
 
+-> If it doesn't work, restart the docker containers
+

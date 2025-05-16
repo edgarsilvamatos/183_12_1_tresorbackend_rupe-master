@@ -1,27 +1,36 @@
 package ch.bbw.pr.tresorbackend.controller;
 
-import ch.bbw.pr.tresorbackend.model.ConfigProperties;
-import ch.bbw.pr.tresorbackend.model.EmailAdress;
-import ch.bbw.pr.tresorbackend.model.RegisterUser;
-import ch.bbw.pr.tresorbackend.model.User;
-import ch.bbw.pr.tresorbackend.service.PasswordEncryptionService;
-import ch.bbw.pr.tresorbackend.service.UserService;
+import java.util.List;
+import java.util.stream.Collectors;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
-import jakarta.validation.Valid;
-import lombok.AllArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-import java.util.stream.Collectors;
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+
+import ch.bbw.pr.tresorbackend.model.ConfigProperties;
+import ch.bbw.pr.tresorbackend.model.EmailAdress;
+import ch.bbw.pr.tresorbackend.model.RegisterUser;
+import ch.bbw.pr.tresorbackend.model.User;
+import ch.bbw.pr.tresorbackend.service.PasswordEncryptionService;
+import ch.bbw.pr.tresorbackend.service.UserService;
+import jakarta.validation.Valid;
+import lombok.AllArgsConstructor;
 
 /**
  * UserController
@@ -53,49 +62,45 @@ public class UserController {
    @CrossOrigin(origins = "${CROSS_ORIGIN}")
    @PostMapping
    public ResponseEntity<String> createUser(@Valid @RequestBody RegisterUser registerUser, BindingResult bindingResult) {
-      //captcha
-      //todo ergänzen
-
-      System.out.println("UserController.createUser: captcha passed.");
-
-      //input validation
       if (bindingResult.hasErrors()) {
          List<String> errors = bindingResult.getFieldErrors().stream()
                .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
                .collect(Collectors.toList());
-         System.out.println("UserController.createUser " + errors);
-
          JsonArray arr = new JsonArray();
          errors.forEach(arr::add);
          JsonObject obj = new JsonObject();
          obj.add("message", arr);
          String json = new Gson().toJson(obj);
-
-         System.out.println("UserController.createUser, validation fails: " + json);
          return ResponseEntity.badRequest().body(json);
       }
-      System.out.println("UserController.createUser: input validation passed");
 
-      //password validation
-      //todo ergänzen
-      System.out.println("UserController.createUser, password validation passed");
-
-      //transform registerUser to user
+      // Hash the password and save the user
       User user = new User(
             null,
             registerUser.getFirstName(),
             registerUser.getLastName(),
             registerUser.getEmail(),
             passwordService.hashPassword(registerUser.getPassword())
-            );
-
-      User savedUser = userService.createUser(user);
-      System.out.println("UserController.createUser, user saved in db");
+      );
+      userService.createUser(user);
       JsonObject obj = new JsonObject();
       obj.addProperty("answer", "User Saved");
-      String json = new Gson().toJson(obj);
-      System.out.println("UserController.createUser " + json);
-      return ResponseEntity.accepted().body(json);
+      return ResponseEntity.accepted().body(new Gson().toJson(obj));
+   }
+
+   // User login
+   @PostMapping("/login")
+   public ResponseEntity<String> doLoginUser(@RequestBody User loginUser) {
+      User user = userService.findByEmail(loginUser.getEmail());
+      if (user != null && passwordService.doPasswordMatch(loginUser.getPassword(), user.getPassword())) {
+         JsonObject obj = new JsonObject();
+         obj.addProperty("message", "Login successful");
+         obj.addProperty("userId", user.getId());
+         return ResponseEntity.ok(new Gson().toJson(obj));
+      }
+      JsonObject obj = new JsonObject();
+      obj.addProperty("message", "Login failed");
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new Gson().toJson(obj));
    }
 
    // build get user by id REST API
