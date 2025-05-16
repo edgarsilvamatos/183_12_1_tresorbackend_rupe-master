@@ -1,7 +1,5 @@
 package ch.bbw.pr.tresorbackend.util;
 
-import org.jasypt.util.text.AES256TextEncryptor;
-
 /**
  * EncryptUtil
  * Used to encrypt content.
