@@ -67,6 +67,11 @@
             <artifactId>jasypt-spring-boot-starter</artifactId>
             <version>3.0.5</version>
         </dependency>
+        <dependency>
+            <groupId>javax.crypto</groupId>
+            <artifactId>javax.crypto-api</artifactId>
+            <version>1.1.1</version>
+        </dependency>
     </dependencies>
 
     <build>
