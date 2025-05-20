@@ -1,6 +1,5 @@
 package ch.bbw.pr.tresorbackend.model;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -21,7 +20,7 @@ public class NewSecret {
    private String email;
 
    @NotNull (message="secret is required.")
-   private JsonNode content;
+   private String content;
 
    @NotEmpty (message="encryption password id is required.")
    private String encryptPassword;
