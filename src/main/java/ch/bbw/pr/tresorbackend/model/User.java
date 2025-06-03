@@ -1,6 +1,7 @@
 package ch.bbw.pr.tresorbackend.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,6 +31,8 @@ public class User {
    @Column(nullable = false, unique = true)
    private String email;
 
+   @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$",
+            message = "Password too weak!")
    @Column(nullable = false)
    private String password;
 

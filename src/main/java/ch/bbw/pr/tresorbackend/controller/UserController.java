@@ -1,11 +1,14 @@
 package ch.bbw.pr.tresorbackend.controller;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindingResult;
@@ -18,6 +21,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
@@ -74,7 +78,25 @@ public class UserController {
          return ResponseEntity.badRequest().body(json);
       }
 
-      // Hash the password and save the user
+      // === ReCaptcha Verification ===
+      String recaptchaToken = registerUser.getRecaptchaToken();
+      String secretKey = "6LenF1QrAAAAAIe8FrD6CmDntrs-MDc1yDKViVr6"; 
+
+      RestTemplate restTemplate = new RestTemplate();
+      String verifyUrl = "https://www.google.com/recaptcha/api/siteverify";
+
+      Map<String, String> body = new HashMap<>();
+      body.put("secret", secretKey);
+      body.put("response", recaptchaToken);
+
+      HttpEntity<Map<String, String>> request = new HttpEntity<>(body);
+      ResponseEntity<String> captchaResponse = restTemplate.postForEntity(verifyUrl, request, String.class);
+
+      if (!captchaResponse.getBody().contains("\"success\": true")) {
+         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("{\"message\":\"Captcha validation failed\"}");
+      }
+
+      // === Save user ===
       User user = new User(
             null,
             registerUser.getFirstName(),
@@ -86,6 +108,27 @@ public class UserController {
       JsonObject obj = new JsonObject();
       obj.addProperty("answer", "User Saved");
       return ResponseEntity.accepted().body(new Gson().toJson(obj));
+   }
+
+   @CrossOrigin(origins = "${CROSS_ORIGIN}")
+   @PutMapping("/reset-password")
+   public ResponseEntity<String> resetPassword(@RequestBody Map<String, String> payload) {
+      String email = payload.get("email");
+      String newPassword = payload.get("newPassword");
+
+      if (email == null || newPassword == null) {
+         return ResponseEntity.badRequest().body("{\"message\":\"Email and new password required\"}");
+      }
+
+      User user = userService.findByEmail(email);
+      if (user == null) {
+         return ResponseEntity.status(HttpStatus.NOT_FOUND).body("{\"message\":\"User not found\"}");
+      }
+
+      user.setPassword(passwordService.hashPassword(newPassword));
+      userService.updateUser(user);
+
+      return ResponseEntity.ok("{\"message\":\"Password reset successful\"}");
    }
 
    // User login
