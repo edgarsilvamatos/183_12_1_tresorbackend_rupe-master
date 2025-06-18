@@ -33,6 +33,8 @@ import ch.bbw.pr.tresorbackend.model.RegisterUser;
 import ch.bbw.pr.tresorbackend.model.User;
 import ch.bbw.pr.tresorbackend.service.PasswordEncryptionService;
 import ch.bbw.pr.tresorbackend.service.UserService;
+import ch.bbw.pr.tresorbackend.util.RecaptchaService;
+import ch.bbw.pr.tresorbackend.util.PasswordValidator;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
 
@@ -48,11 +50,15 @@ public class UserController {
    private UserService userService;
    private PasswordEncryptionService passwordService;
    private final ConfigProperties configProperties;
+   private PasswordValidator passwordValidator;
+   private RecaptchaService recaptchaService;
    private static final Logger logger = LoggerFactory.getLogger(UserController.class);
 
    @Autowired
    public UserController(ConfigProperties configProperties, UserService userService,
-                         PasswordEncryptionService passwordService) {
+                         PasswordEncryptionService passwordService,
+                         PasswordValidator passwordValidator,
+                         RecaptchaService recaptchaService) {
       this.configProperties = configProperties;
       System.out.println("UserController.UserController: cross origin: " + configProperties.getOrigin());
       // Logging in the constructor
@@ -60,12 +66,25 @@ public class UserController {
       logger.debug("UserController.UserController: Cross Origin Config: {}", configProperties.getOrigin());
       this.userService = userService;
       this.passwordService = passwordService;
+      this.passwordValidator = passwordValidator;
+      this.recaptchaService = recaptchaService;
    }
 
    // build create User REST API
    @CrossOrigin(origins = "${CROSS_ORIGIN}")
    @PostMapping
    public ResponseEntity<String> createUser(@Valid @RequestBody RegisterUser registerUser, BindingResult bindingResult) {
+      // ReCAPTCHA verification
+      if (!recaptchaService.verifyRecaptcha(registerUser.getRecaptchaToken())) {
+         logger.warn("ReCAPTCHA verification failed for registration attempt");
+         JsonObject obj = new JsonObject();
+         JsonArray arr = new JsonArray();
+         arr.add("ReCAPTCHA verification failed");
+         obj.add("message", arr);
+         return ResponseEntity.badRequest().body(new Gson().toJson(obj));
+      }
+      logger.info("ReCAPTCHA verification passed");
+
       if (bindingResult.hasErrors()) {
          List<String> errors = bindingResult.getFieldErrors().stream()
                .map(fieldError -> fieldError.getField() + ": " + fieldError.getDefaultMessage())
@@ -78,23 +97,16 @@ public class UserController {
          return ResponseEntity.badRequest().body(json);
       }
 
-      // === ReCaptcha Verification ===
-      String recaptchaToken = registerUser.getRecaptchaToken();
-      String secretKey = "6LenF1QrAAAAAIe8FrD6CmDntrs-MDc1yDKViVr6"; 
-
-      RestTemplate restTemplate = new RestTemplate();
-      String verifyUrl = "https://www.google.com/recaptcha/api/siteverify";
-
-      Map<String, String> body = new HashMap<>();
-      body.put("secret", secretKey);
-      body.put("response", recaptchaToken);
-
-      HttpEntity<Map<String, String>> request = new HttpEntity<>(body);
-      ResponseEntity<String> captchaResponse = restTemplate.postForEntity(verifyUrl, request, String.class);
-
-      if (!captchaResponse.getBody().contains("\"success\": true")) {
-         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("{\"message\":\"Captcha validation failed\"}");
+      List<String> passwordErrors = passwordValidator.validatePassword(registerUser.getPassword());
+      if (!passwordErrors.isEmpty()) {
+         logger.warn("Password validation failed: {}", passwordErrors);
+         JsonArray arr = new JsonArray();
+         passwordErrors.forEach(arr::add);
+         JsonObject obj = new JsonObject();
+         obj.add("message", arr);
+         return ResponseEntity.badRequest().body(new Gson().toJson(obj));
       }
+      logger.info("Password validation passed");
 
       // === Save user ===
       User user = new User(
